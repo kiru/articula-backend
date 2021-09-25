@@ -17,38 +17,58 @@ ns = api.namespace('articula')
 # })
 
 apiWorldLog = api.model('WordLogEntry', {
-    'read_fk_id': fields.String(),
-    'sentence_id': fields.String(),
+    'sentenceId': fields.String(),
     # This is  duplicate ... but on the server I don't know what is the sentence for the given id
     'sentence': fields.String(),
     'format': fields.String(),
-    'start_time': fields.DateTime(),
-    'end_time': fields.DateTime(),
+    # either 'START_VIEW' (mostly in view) or 'END_VIEW' (partially-view)
+    'type': fields.String(),
+    'time': fields.DateTime(),
 })
 
-@ns.route('/api/log/')
-class WordLog(Resource):
-    @ns.doc('add log entry')
-    @ns.expect(apiWorldLog)
-    @ns.marshal_with(apiWorldLog, code=201)
+events = api.model('Events', {
+    'events': fields.List(fields.Nested(apiWorldLog)),
+    'articleUrl':  fields.String(),
+    'readId': fields.String(),
+})
+
+@ns.route('/api/events/')
+class EvenLog(Resource):
+    @ns.doc('add even entries')
+    @ns.expect(events)
+    @ns.marshal_with(events, code=201)
     def post(self):
         '''Create a new task'''
         payload = api.payload
         print(payload)
 
+        events = payload['events']
         with engine.connect() as con:
+
+            # create read entry
             rs = con.execute("""
-            insert into log_entry(reads_fk_id, sentence_id, sentence, format, start_time, end_time)
-            values (%s, %s, %s, %s, %s, %s)
+            insert into reads(id, article_url)
+            values (%s, %s)
             """, (
-                payload['read_fk_id'],
-                payload['sentence_id'],
-                payload['sentence'],
-                payload['format'],
-                payload['start_time'],
-                payload['end_time'],
+                payload['readId'],
+                payload['articleUrl'],
             ))
-            print(rs)
+
+            ## write all events
+            for event in events:
+                rs = con.execute("""
+                insert into log_entry(reads_fk_id, sentence_id, sentence, format, type, end_time)
+                values (%s, %s, %s, %s, %s, %s)
+                """, (
+                    payload['readId'],
+                    event['sentenceId'],
+                    event['sentence'],
+                    event['format'],
+                    event['type'],
+                    event['time'],
+                ))
+                print(rs)
+
             return {}, 201
 
 @app.route("/")
@@ -63,21 +83,11 @@ if __name__ == '__main__' or __name__ == 'app':
     # Create DB structure
     # Intentionally skipped FK references
     with engine.connect() as con:
-        print("articles")
-        con.execute("""
-        create table if not exists articles
-        (
-           id  uuid         not null,
-           url varchar(255) not null
-        )
-        """)
-
         print("reads")
         con.execute("""
-        create table if not exists reads
-        (
+        create table if not exists reads (
            id            uuid         not null,
-           article_fk_id uuid         not null
+           article_url   varchar(255) not null
         )
         """)
 
@@ -85,12 +95,12 @@ if __name__ == '__main__' or __name__ == 'app':
         con.execute("""
         create table if not exists log_entry
         (
-            reads_fk_id   uuid         not null,
-            sentence_id   uuid         not null,
-            sentence      varchar(255) not null,
-            format        varchar(255) not null,
-            start_time    timestamp   not null,
-            end_time      timestamp   not null
+            reads_fk_id   uuid          not null,
+            sentence_id   uuid          not null,
+            sentence      varchar(1024) not null,
+            format        varchar(255)  not null,
+            type          varchar(255)  not null,
+            end_time      timestamp     not null
         )
         """)
 
