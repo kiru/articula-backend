@@ -32,9 +32,45 @@ events = api.model('Events', {
     'readId': fields.String(),
 })
 
+reads = api.model('Reads', {
+    'events': fields.List(fields.Nested(apiWorldLog)),
+    'articleUrl': fields.String(),
+    'readId': fields.String(),
+})
+
+sentenceScore = api.model('SentenceScore', {
+    'sentence_id': fields.String(),
+    'score': fields.Integer(),
+})
+
+@ns.route('/api/reads/')
+class ReadLogs(Resource):
+    def get(self):
+        with engine.connect() as con:
+            o = con.execute("select * from reads order by id")
+            result = [{
+                'id': str(each[0]),
+                'article_url': each[1]
+            } for each in o]
+
+            return result, 201
+
+@ns.route('/api/reads/<string:read_id>/')
+class ReadLogs(Resource):
+    @ns.doc('sentence scores ')
+    def get(self, read_id):
+        with engine.connect() as con:
+            o = con.execute("select sentence  from log_entry where reads_fk_id = %s order by sentence_id", (read_id))
+            result = [{
+                'sentence': str(each[0]),
+                'score': 30
+            } for each in o]
+
+            return result, 201
+
 @ns.route('/api/events/')
 class EvenLog(Resource):
-    @ns.doc('add even entries')
+    @ns.doc('add event entries')
     @ns.expect(events)
     @ns.marshal_with(events, code=201)
     def post(self):
