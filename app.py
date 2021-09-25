@@ -53,7 +53,7 @@ sentenceScore = api.model('SentenceScore', {
 class ReadLogs(Resource):
     def get(self):
         with engine.connect() as con:
-            o = con.execute("select id, article_url, created from reads order by created desc")
+            o = con.execute("select id, article_url, created  + interval '2 hour' from reads order by created desc")
             result = [{
                 'id': str(each[0]),
                 'articleUrl': each[1],
@@ -80,7 +80,7 @@ def read_accuracy(con, read_id):
     res = list(con.execute("select total_sentence_count from reads where id = %s", (read_id)))[0]
     totalSentenceCount = res[0]
     rest = set(range(totalSentenceCount)) - set(sentenceIds)
-    additional = (len(rest) * [1])
+    additional = (len(rest) * [0])
 
     full = additional + scores
     return round(np.mean(full), 2)
@@ -97,7 +97,7 @@ def final_score(con, reads_id):
 
     sentence_id_to_mean = []
     for each_sentence_id in final:
-        res = list(con.execute("""select time,type from log_entry where sentence_id = %s and reads_fk_id =%s order by order_nr""", (each_sentence_id, reads_id)))
+        res = list(con.execute("""select time,type from log_entry where sentence_id = %s and reads_fk_id = %s order by order_nr""", (each_sentence_id, reads_id)))
         times = []
         last = 0
         for (time, type) in res:
@@ -172,7 +172,7 @@ class ReadLogs(Resource):
             res = list(con.execute("select total_sentence_count from reads where id = %s", (read_id)))[0]
             totalSentenceCount = res[0]
             rest = set(range(totalSentenceCount)) - set(sentenceIds)
-            additional = (len(rest) * [1])
+            additional = (len(rest) * [0])
 
             full = additional + scores
             read_accuracy = round(np.mean(full), 2)
